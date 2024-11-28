@@ -149,6 +149,39 @@ uint16_t SPIReadData()
     return result;
 }
 
+// Host Commands
+// run
+void IT8951SystemRun()
+{
+    SPIWriteCommand(IT8951_TCON_SYS_RUN);
+}
+// standby
+void IT8951SystemStandby()
+{
+    SPIWriteCommand(IT8951_TCON_STANDBY);
+}
+// sleep 
+void IT8951SystemSleep()
+{
+    SPIWriteCommand(IT8951_TCON_SLEEP);
+}
+// readreg
+uint16_t IT8951ReadRegister(uint16_t address)
+{
+    uint16_t data;
+    SPIWriteCommand(IT8951_TCON_REG_RD);
+    SPIWriteData(address);
+    data = SPIReadData();
+    return data;
+}
+// writereg
+void IT8951WriteRegister(uint16_t address, uint16_t value)
+{
+    SPIWriteCommand(IT8951_TCON_REG_WR);
+    SPIWriteData(address);
+    SPIWriteData(value);
+}
+
 int main(void) {
     printf("RaspberryPi SPI test\n");
 
@@ -178,41 +211,14 @@ int main(void) {
     // default CS needs to be HIGH
     digitalWrite(CS, HIGH);
 
-    // SPIWriteCommand(USDEF_I80_CMD_GET_DEV_INFO);
-    // SPIWriteCommand(IT8951_TCON_STANDBY);
-    // SPIWriteCommand(IT8951_TCON_MEM_BST_RD_S);
-    // SPIWriteCommand(IT8951_TCON_LD_IMG_AREA);
+    IT8951SystemRun();
+    IT8951SystemStandby();
+    IT8951SystemSleep();
 
-    // SPIWriteData(USDEF_I80_CMD_GET_DEV_INFO);
-    // SPIWriteData(IT8951_TCON_STANDBY);
-    // SPIWriteData(IT8951_TCON_MEM_BST_RD_S);
-    // SPIWriteData(IT8951_TCON_LD_IMG_AREA);
-
-    SPIReadData();
+    IT8951ReadRegister(0x1234);
+    IT8951WriteRegister(0x7890, 0x6969);
 
 
-    // digitalWrite (CS, HIGH) ;	// On
-    // delay (500) ;		// mS
-    // digitalWrite (CS, LOW) ;	// Off
-    // delay (500) ;
-  
-
-    // printf("Sending data over SPI...\n");
-    // sendAndReceiveSPI(dataToSend, dataReceived, sizeof(dataToSend));
-
-    // printf("Sent: ");
-    // for (int i = 0; i < sizeof(dataToSend); i++)
-    // {
-    //     printf("0x%02X ", dataToSend[i]);
-    // }
-    // printf("\n");
-    
-    // printf("Received: ");
-    // for (int i = 0; i < sizeof(dataReceived); i++)
-    // {
-    //     printf("0x%02X ", dataReceived[i]);
-    // }
-    // printf("\n");
-    
+    // SPIReadData();    
     return 0;
 }
