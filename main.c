@@ -54,9 +54,21 @@ void sendAndReceiveSPI(const unsigned char *dataToSend, unsigned char *dataRecei
 
 void SPIWriteCommand(uint16_t command)
 {
-    unsigned char command_preamble[2];
+    /*
+    BUG
+    obsluga chip select jest calkowicie realizowana przez wiringpi, wiec cala obsluge softwareowa trzeba usunac
+    dlatego tez caly payload do jednorazowego wyslania trzeba spakowac w jedna tablice i wyslac tylko jeden raz
+    opisane to jest w programming quidzie
+    dlatego prototypowo recznie zapakowalem preamble i komende do jednej tablicy i wyslalem recznie, dzieki czemu chip select sie zgadza i dziala poprawnie
+    zostalo jeszcze rozkminienie jak powinien dzialac ten HST_RDY i odkomentowanie LCDWaitForReady()
+    */
+
+    unsigned char command_preamble[4];
     command_preamble[0] = 0x60;
     command_preamble[1] = 0x00;
+
+    command_preamble[2] = 0x11;
+    command_preamble[3] = 0x00;
 
     uint8_t command_char[2];
     printf("0x%04x\n", command);
@@ -64,23 +76,24 @@ void SPIWriteCommand(uint16_t command)
     command_char[0] = (command >> 8) & 0xFF;
     command_char[1] = (command & 0xFF);
 
-    printf("0x%02x\n", command_char[0]);
-    printf("0x%02x\n", command_char[1]);
+    printf("0x%02x\n", command_preamble[0]);
+    printf("0x%02x\n", command_preamble[1]);
+    printf("0x%02x\n", command_preamble[2]);
+    printf("0x%02x\n", command_preamble[3]);
 
     // LCDWaitForReady();
     
-    digitalWrite(CS, LOW);
+    // digitalWrite(CS, LOW);
 
-    wiringPiSPIDataRW(SPI_CHAN, command_preamble, sizeof(command));
+    wiringPiSPIDataRW(SPI_CHAN, command_preamble, sizeof(command_preamble));
     // wiringPiSPIDataRW(SPI_CHAN, command_preamble, sizeof(command));
 
     // LCDWaitForReady();
 
-    wiringPiSPIDataRW(SPI_CHAN, command_char, sizeof(command));
+    // wiringPiSPIDataRW(SPI_CHAN, command_char, sizeof(command));
     // wiringPiSPIDataRW(SPI_CHAN, command, sizeof(command));
 
-    digitalWrite(CS, HIGH);
-
+    // digitalWrite(CS, HIGH);
 }
 
 void SPIWriteData(uint16_t data)
@@ -206,17 +219,17 @@ int main(void) {
     unsigned char dataReceived[sizeof(dataToSend)] = {0};
 
     pinMode(CS, OUTPUT);
-    pinMode(HST_RDY, OUTPUT);
+    pinMode(HST_RDY, INPUT);
 
     // default CS needs to be HIGH
     digitalWrite(CS, HIGH);
 
-    IT8951SystemRun();
-    IT8951SystemStandby();
-    IT8951SystemSleep();
+    // IT8951SystemRun();
+    // IT8951SystemStandby();
+    // IT8951SystemSleep();
 
-    IT8951ReadRegister(0x1234);
-    IT8951WriteRegister(0x7890, 0x6969);
+    // IT8951ReadRegister(0x1234);
+    IT8951WriteRegister(0x1100, 0x0506);
 
 
     // SPIReadData();    
