@@ -8,8 +8,8 @@
 #define SPI_CHAN 0
 #define SPI_SPEED 500000
 
-#define CS 10
-#define HST_RDY 24
+// #define CS 10
+#define HST_RDY 5
 
 //Built in I80 Command Code
 #define IT8951_TCON_SYS_RUN      0x0001
@@ -37,6 +37,7 @@ void LCDWaitForReady()
 	while(ulData == 0)
 	{
 		ulData = digitalRead(HST_RDY);
+        printf("HST_RDY: %d\n", digitalRead(HST_RDY));
 	}
 }
 
@@ -63,62 +64,35 @@ void SPIWriteCommand(uint16_t command)
     zostalo jeszcze rozkminienie jak powinien dzialac ten HST_RDY i odkomentowanie LCDWaitForReady()
     */
 
-    unsigned char command_preamble[4];
-    command_preamble[0] = 0x60;
-    command_preamble[1] = 0x00;
+    unsigned char data_to_send[4];
+    data_to_send[0] = 0x60;
+    data_to_send[1] = 0x00;
 
-    command_preamble[2] = 0x11;
-    command_preamble[3] = 0x00;
+    data_to_send[2] = command >> 8;
+    data_to_send[3] = command;
 
-    uint8_t command_char[2];
-    printf("0x%04x\n", command);
 
-    command_char[0] = (command >> 8) & 0xFF;
-    command_char[1] = (command & 0xFF);
+    printf("0x%02x\n", data_to_send[0]);
+    printf("0x%02x\n", data_to_send[1]);
+    printf("0x%02x\n", data_to_send[2]);
+    printf("0x%02x\n", data_to_send[3]);
 
-    printf("0x%02x\n", command_preamble[0]);
-    printf("0x%02x\n", command_preamble[1]);
-    printf("0x%02x\n", command_preamble[2]);
-    printf("0x%02x\n", command_preamble[3]);
+    LCDWaitForReady();
 
-    // LCDWaitForReady();
-    
-    // digitalWrite(CS, LOW);
-
-    wiringPiSPIDataRW(SPI_CHAN, command_preamble, sizeof(command_preamble));
-    // wiringPiSPIDataRW(SPI_CHAN, command_preamble, sizeof(command));
-
-    // LCDWaitForReady();
-
-    // wiringPiSPIDataRW(SPI_CHAN, command_char, sizeof(command));
-    // wiringPiSPIDataRW(SPI_CHAN, command, sizeof(command));
-
-    // digitalWrite(CS, HIGH);
+    wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
 }
 
 void SPIWriteData(uint16_t data)
 {
-    unsigned char write_preamble[2];
-    write_preamble[0] = 0x00;
-    write_preamble[1] = 0x00;
+    unsigned char data_to_send[4];
+    data_to_send[0] = 0x00;
+    data_to_send[1] = 0x00;
+    data_to_send[2] = data >> 8;
+    data_to_send[3] = data;
 
-    unsigned char data_char[2];
-    data_char[0] = (data >> 8) & 0xFF;
-    data_char[1] = data & 0xFF;
+    LCDWaitForReady();
 
-    // LCDWaitForReady();
-
-    digitalWrite(CS, LOW);
-
-    // wiringPiSPIDataRW(SPI_CHAN, write_preamble >> 8, sizeof(data));
-    wiringPiSPIDataRW(SPI_CHAN, write_preamble, sizeof(write_preamble));
-
-    // LCDWaitForReady();
-
-    wiringPiSPIDataRW(SPI_CHAN, data_char, sizeof(data_char));
-    // wiringPiSPIDataRW(SPI_CHAN, data, sizeof(data));
-
-    digitalWrite(CS, HIGH);
+    wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
 }
 
 uint16_t SPIReadData()
@@ -131,7 +105,7 @@ uint16_t SPIReadData()
     
     // LCDWaitForReady();
 
-    digitalWrite(CS, LOW);
+    // digitalWrite(CS, LOW);
 
     // wiringPiSPIDataRW(SPI_CHAN, read_preamble >> 8, sizeof(read_preamble));
     printf("0x%02x\n", read_preamble[0]);
@@ -154,7 +128,7 @@ uint16_t SPIReadData()
     printf("0x%02x\n", data_received[0]);
     printf("0x%02x\n", data_received[1]);
 
-    digitalWrite(CS, HIGH);
+    // digitalWrite(CS, HIGH);
 
     uint16_t result = (data_received[1] << 8) | data_received[0];
     printf("0x%04x\n", result);
@@ -218,20 +192,17 @@ int main(void) {
     unsigned char dataToSend[] = {0xDE, 0xAD, 0xEF, 0xDE, 0xAD, 0xEF, 0xDE, 0xAD, 0xEF, 0xDE, 0xAD, 0xEF, 0xDE, 0xAD, 0xEF, 0xFF, 0xFF};
     unsigned char dataReceived[sizeof(dataToSend)] = {0};
 
-    pinMode(CS, OUTPUT);
     pinMode(HST_RDY, INPUT);
-
-    // default CS needs to be HIGH
-    digitalWrite(CS, HIGH);
 
     // IT8951SystemRun();
     // IT8951SystemStandby();
     // IT8951SystemSleep();
 
     // IT8951ReadRegister(0x1234);
-    IT8951WriteRegister(0x1100, 0x0506);
+    for (int i = 0; i < 100; i++)
+    {
+        IT8951WriteRegister(0x1100, 0x0506);
+    }
 
-
-    // SPIReadData();    
     return 0;
 }
