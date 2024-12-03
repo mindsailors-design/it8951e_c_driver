@@ -7,6 +7,8 @@
 
 #define SPI_CHAN 0
 #define SPI_SPEED 500000
+#define BUFFER_SIZE 4
+    // const uint8_t BUFFER_SIZE = 4;
 
 // #define CS 10
 #define HST_RDY 5
@@ -90,50 +92,32 @@ void SPIWriteData(uint16_t data)
     data_to_send[2] = data >> 8;
     data_to_send[3] = data;
 
+    printf("0x%02x\n", data_to_send[0]);
+    printf("0x%02x\n", data_to_send[1]);
+    printf("0x%02x\n", data_to_send[2]);
+    printf("0x%02x\n", data_to_send[3]);
+
     LCDWaitForReady();
 
     wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
 }
 
-uint16_t SPIReadData()
+void SPIReadData(uint16_t address, uint8_t* data)
 {
-    unsigned char data_received[2] = {0};
-    unsigned char read_preamble[2];
-    read_preamble[0] = 0x10;
-    read_preamble[1] = 0x00;
+    // read_preamble = 0x10, read_preamble = 0x00, dummy = 0x00, dummy = 0x00
+    data[0] = 0x10;
+    data[1] = 0x00;
+    data[2] = 0x00;
+    data[3] = 0x00;
 
+    wiringPiSPIDataRW(SPI_CHAN, data, BUFFER_SIZE);
     
-    // LCDWaitForReady();
-
-    // digitalWrite(CS, LOW);
-
-    // wiringPiSPIDataRW(SPI_CHAN, read_preamble >> 8, sizeof(read_preamble));
-    printf("0x%02x\n", read_preamble[0]);
-    printf("0x%02x\n", read_preamble[1]);
-    wiringPiSPIDataRW(SPI_CHAN, read_preamble, sizeof(read_preamble));
-    printf("0x%02x\n", read_preamble[0]);
-    printf("0x%02x\n", read_preamble[1]);
-
-    // LCDWaitForReady();
-
-    wiringPiSPIDataRW(SPI_CHAN, data_received, sizeof(data_received)); // dummy
-    printf("0x%02x\n", data_received[0]);
-    printf("0x%02x\n", data_received[1]);
-    // wiringPiSPIDataRW(SPI_CHAN, data_received, sizeof(data_received)); // dummy
-
-    // LCDWaitForReady();
-
-    data_received[1] = wiringPiSPIDataRW(SPI_CHAN, data_received, sizeof(data_received)) << 8;
-    data_received[0] = wiringPiSPIDataRW(SPI_CHAN, data_received, sizeof(data_received));
-    printf("0x%02x\n", data_received[0]);
-    printf("0x%02x\n", data_received[1]);
-
-    // digitalWrite(CS, HIGH);
-
-    uint16_t result = (data_received[1] << 8) | data_received[0];
-    printf("0x%04x\n", result);
-
-    return result;
+    printf("Data received: ");
+    for (int i = 0; i < BUFFER_SIZE; i++)
+    {
+        printf("0x%02x ", data[i]); 
+    }
+    printf("\n");
 }
 
 // Host Commands
@@ -153,13 +137,17 @@ void IT8951SystemSleep()
     SPIWriteCommand(IT8951_TCON_SLEEP);
 }
 // readreg
-uint16_t IT8951ReadRegister(uint16_t address)
+void IT8951ReadRegister(uint16_t address)
 {
-    uint16_t data;
     SPIWriteCommand(IT8951_TCON_REG_RD);
     SPIWriteData(address);
-    data = SPIReadData();
-    return data;
+
+    uint8_t data[BUFFER_SIZE] = {0};
+    SPIReadData(address, data);
+    printf("%p\n", (void*)data);
+    
+    printf("First byte: 0x%02x\n", data[2]);
+    printf("Second byte: 0x%02x\n", data[3]);
 }
 // writereg
 void IT8951WriteRegister(uint16_t address, uint16_t value)
@@ -188,21 +176,15 @@ int main(void) {
         printf("SPI setup failed\n");
         return 1;
     }
-    
-    unsigned char dataToSend[] = {0xDE, 0xAD, 0xEF, 0xDE, 0xAD, 0xEF, 0xDE, 0xAD, 0xEF, 0xDE, 0xAD, 0xEF, 0xDE, 0xAD, 0xEF, 0xFF, 0xFF};
-    unsigned char dataReceived[sizeof(dataToSend)] = {0};
 
     pinMode(HST_RDY, INPUT);
 
-    // IT8951SystemRun();
+    IT8951SystemRun();
     // IT8951SystemStandby();
-    // IT8951SystemSleep();
+    IT8951SystemSleep();
 
-    // IT8951ReadRegister(0x1234);
-    for (int i = 0; i < 100; i++)
-    {
-        IT8951WriteRegister(0x1100, 0x0506);
-    }
-
+    IT8951WriteRegister(0x1100, 0x0506);
+    // IT8951ReadRegister(0x1100);
+ 
     return 0;
 }
