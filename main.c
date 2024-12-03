@@ -12,6 +12,7 @@
 
 // #define CS 10
 #define HST_RDY 5
+#define RST 0
 
 //Built in I80 Command Code
 #define IT8951_TCON_SYS_RUN      0x0001
@@ -57,22 +58,12 @@ void sendAndReceiveSPI(const unsigned char *dataToSend, unsigned char *dataRecei
 
 void SPIWriteCommand(uint16_t command)
 {
-    /*
-    BUG
-    obsluga chip select jest calkowicie realizowana przez wiringpi, wiec cala obsluge softwareowa trzeba usunac
-    dlatego tez caly payload do jednorazowego wyslania trzeba spakowac w jedna tablice i wyslac tylko jeden raz
-    opisane to jest w programming quidzie
-    dlatego prototypowo recznie zapakowalem preamble i komende do jednej tablicy i wyslalem recznie, dzieki czemu chip select sie zgadza i dziala poprawnie
-    zostalo jeszcze rozkminienie jak powinien dzialac ten HST_RDY i odkomentowanie LCDWaitForReady()
-    */
-
     unsigned char data_to_send[4];
     data_to_send[0] = 0x60;
     data_to_send[1] = 0x00;
 
     data_to_send[2] = command >> 8;
     data_to_send[3] = command;
-
 
     printf("0x%02x\n", data_to_send[0]);
     printf("0x%02x\n", data_to_send[1]);
@@ -92,17 +83,17 @@ void SPIWriteData(uint16_t data)
     data_to_send[2] = data >> 8;
     data_to_send[3] = data;
 
-    printf("0x%02x\n", data_to_send[0]);
-    printf("0x%02x\n", data_to_send[1]);
-    printf("0x%02x\n", data_to_send[2]);
-    printf("0x%02x\n", data_to_send[3]);
+    // printf("0x%02x\n", data_to_send[0]);
+    // printf("0x%02x\n", data_to_send[1]);
+    // printf("0x%02x\n", data_to_send[2]);
+    // printf("0x%02x\n", data_to_send[3]);
 
     LCDWaitForReady();
 
     wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
 }
 
-void SPIReadData(uint16_t address, uint8_t* data)
+void SPIReadData(uint8_t* data)
 {
     // read_preamble = 0x10, read_preamble = 0x00, dummy = 0x00, dummy = 0x00
     data[0] = 0x10;
@@ -120,7 +111,37 @@ void SPIReadData(uint16_t address, uint8_t* data)
     printf("\n");
 }
 
+// readreg
+void IT8951ReadRegister(uint16_t address)
+{
+    SPIWriteCommand(IT8951_TCON_REG_RD);
+    SPIWriteData(address);
+
+    uint8_t data[BUFFER_SIZE] = {0};
+    SPIReadData(data);
+    printf("%p\n", (void*)data);
+    
+    printf("First byte: 0x%02x\n", data[2]);
+    printf("Second byte: 0x%02x\n", data[3]);
+}
+// writereg
+void IT8951WriteRegister(uint16_t address, uint16_t value)
+{
+    SPIWriteCommand(IT8951_TCON_REG_WR);
+    SPIWriteData(address);
+    SPIWriteData(value);
+}
+
 // Host Commands
+// reset
+void IT8951Reset()
+{
+    digitalWrite(RST, HIGH);
+    delay(200);
+    digitalWrite(RST, LOW);
+    delay(200);
+    digitalWrite(RST, HIGH);
+}
 // run
 void IT8951SystemRun()
 {
@@ -136,27 +157,34 @@ void IT8951SystemSleep()
 {
     SPIWriteCommand(IT8951_TCON_SLEEP);
 }
-// readreg
-void IT8951ReadRegister(uint16_t address)
+// system info
+void IT8951SystemInfo()
 {
-    SPIWriteCommand(IT8951_TCON_REG_RD);
-    SPIWriteData(address);
-
-    uint8_t data[BUFFER_SIZE] = {0};
-    SPIReadData(address, data);
-    printf("%p\n", (void*)data);
-    
-    printf("First byte: 0x%02x\n", data[2]);
-    printf("Second byte: 0x%02x\n", data[3]);
+    SPIWriteCommand(USDEF_I80_CMD_GET_DEV_INFO);
 }
-// writereg
-void IT8951WriteRegister(uint16_t address, uint16_t value)
+// set vcom
+void IT8951SetVcom(uint16_t vcom)
 {
-    SPIWriteCommand(IT8951_TCON_REG_WR);
-    SPIWriteData(address);
-    SPIWriteData(value);
+    SPIWriteCommand(USDEF_I80_CMD_VCOM);
+    SPIWriteData(0x0001);
+    SPIWriteData(vcom);
 }
-
+// get vcom
+uint16_t IT8951GetVcom()
+{
+    uint8_t buffer[BUFFER_SIZE] = {0};
+    uint16_t Vcom;
+    SPIWriteCommand(USDEF_I80_CMD_VCOM);
+    SPIWriteData(0x0000);
+    SPIReadData(buffer);
+    Vcom = ((uint16_t)buffer[2]<<8) | buffer[3];
+    // dodac jakas konwersje buffer na vcom
+    printf("VCOM: %d\n", Vcom);
+    return Vcom;
+}
+// load image start
+// load image area start
+// load image end
 int main(void) {
     printf("RaspberryPi SPI test\n");
 
@@ -167,7 +195,6 @@ int main(void) {
         printf("WiringPi setup failed\n");
         return 1;
     }
-    
 
     result = wiringPiSPISetup(SPI_CHAN, SPI_SPEED);
     printf("%d\n", result);
@@ -178,13 +205,12 @@ int main(void) {
     }
 
     pinMode(HST_RDY, INPUT);
+    pinMode(RST, OUTPUT);
 
-    IT8951SystemRun();
-    // IT8951SystemStandby();
-    IT8951SystemSleep();
+    digitalWrite(RST, HIGH);
+    // IT8951Reset();
+    IT8951SetVcom(0x7D0);
+    IT8951GetVcom();
 
-    IT8951WriteRegister(0x1100, 0x0506);
-    // IT8951ReadRegister(0x1100);
- 
     return 0;
 }
