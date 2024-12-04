@@ -34,6 +34,50 @@
 #define USDEF_I80_CMD_DPY_BUF_AREA 0x0037
 #define USDEF_I80_CMD_VCOM		   0x0039
 
+// Rotate mode
+#define IT8951_ROTATE_0     0
+#define IT8951_ROTATE_90    1
+#define IT8951_ROTATE_180   2
+#define IT8951_ROTATE_270   3
+
+
+// Pixel mode (Bit per Pixel)
+#define IT8951_2BPP   0
+#define IT8951_3BPP   1
+#define IT8951_4BPP   2
+#define IT8951_8BPP   3
+
+//Endian Type
+#define IT8951_LDIMG_L_ENDIAN   0
+#define IT8951_LDIMG_B_ENDIAN   1
+
+typedef struct IT8951LoadImgInfo
+{
+    uint16_t EndianType;
+    uint16_t PixelFormat;
+    uint16_t Rotate;
+    uint32_t* SourceBufferAddr;
+    uint32_t TargetMemoryAddr;
+} IT8951LoadImgInfo;
+
+typedef struct IT8951AreaImgInfo
+{
+    uint16_t X;
+    uint16_t Y;
+    uint16_t Width;
+    uint16_t Height;
+} IT8951AreaImgInfo;
+
+typedef struct IT8951DevInfo
+{
+    uint16_t PanelWidth;
+    uint16_t PanelHeight;
+    uint16_t ImgBugAddrL;
+    uint16_t ImgBugAddrH;
+    uint16_t FWVersion;
+    uint16_t LUTVersion;
+} IT8951DevInfo;
+
 void LCDWaitForReady()
 {
 	bool ulData = digitalRead(HST_RDY);
@@ -136,6 +180,17 @@ void SPIReadData(uint8_t* data)
     }
     printf("\n");
 }
+// write multi arg
+void IT8951_WriteMultiArg(uint16_t command, uint16_t* arg_buff, uint16_t arg_num)
+{
+    // send command
+    SPIWriteCommand(command);
+    // send data
+    for (uint16_t i = 0; i < arg_num; i++)
+    {
+        SPIWriteData(arg_buff[i]);
+    }
+}
 
 // readreg
 void IT8951ReadRegister(uint16_t address)
@@ -213,8 +268,41 @@ uint16_t IT8951GetVcom()
     return Vcom;
 }
 // load image start
+void IT8951LoadImageStart(IT8951LoadImgInfo* LoadImageInfo)
+{
+    uint16_t Args;
+    Args = (\
+        LoadImageInfo->EndianType<<8 | \
+        LoadImageInfo->PixelFormat<<4 | \
+        LoadImageInfo->Rotate \
+    );
+
+    SPIWriteCommand(IT8951_TCON_LD_IMG);
+    SPIWriteData(Args);
+}
 // load image area start
+void IT8951LoadImageAreaStart(IT8951LoadImgInfo* LoadImageInfo, IT8951AreaImgInfo* AreaImgInfo)
+{
+    uint16_t Args[5];
+    Args[0] = (\
+        LoadImageInfo->EndianType<<8 | \
+        LoadImageInfo->PixelFormat<<4 | \
+        LoadImageInfo->Rotate \
+    );
+    Args[1] = AreaImgInfo->X;
+    Args[2] = AreaImgInfo->Y;
+    Args[3] = AreaImgInfo->Width;
+    Args[4] = AreaImgInfo->Height;
+
+    IT8951_WriteMultiArg(IT8951_TCON_LD_IMG_AREA, Args, 5);
+}
 // load image end
+void IT8951LoadImageEnd()
+{
+    SPIWriteCommand(IT8951_TCON_LD_IMG_END);
+}
+
+
 int main(void) {
     printf("RaspberryPi SPI test\n");
 
