@@ -65,14 +65,22 @@ void SPIWriteCommand(uint16_t command)
     data_to_send[2] = command >> 8;
     data_to_send[3] = command;
 
-    printf("0x%02x\n", data_to_send[0]);
-    printf("0x%02x\n", data_to_send[1]);
-    printf("0x%02x\n", data_to_send[2]);
-    printf("0x%02x\n", data_to_send[3]);
+    // printf("0x%02x\n", data_to_send[0]);
+    // printf("0x%02x\n", data_to_send[1]);
+    // printf("0x%02x\n", data_to_send[2]);
+    // printf("0x%02x\n", data_to_send[3]);
 
     LCDWaitForReady();
 
-    wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
+    int result = wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
+    if (result == -1)
+    {
+        perror("SPI communication failed");
+    }
+    else
+    {
+        printf("SPI result: %d\n", result);
+    }
 }
 
 void SPIWriteData(uint16_t data)
@@ -90,7 +98,15 @@ void SPIWriteData(uint16_t data)
 
     LCDWaitForReady();
 
-    wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
+    int result = wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
+    if (result == -1)
+    {
+        perror("SPI communication failed");
+    }
+    else
+    {
+        printf("SPI result: %d\n", result);
+    }   
 }
 
 void SPIReadData(uint8_t* data)
@@ -101,7 +117,17 @@ void SPIReadData(uint8_t* data)
     data[2] = 0x00;
     data[3] = 0x00;
 
-    wiringPiSPIDataRW(SPI_CHAN, data, BUFFER_SIZE);
+    LCDWaitForReady();
+
+    int result = wiringPiSPIDataRW(SPI_CHAN, data, BUFFER_SIZE);
+    if (result == -1)
+    {
+        perror("SPI communication failed");
+    }
+    else
+    {
+        printf("SPI result: %d\n", result);
+    } 
     
     printf("Data received: ");
     for (int i = 0; i < BUFFER_SIZE; i++)
@@ -119,7 +145,7 @@ void IT8951ReadRegister(uint16_t address)
 
     uint8_t data[BUFFER_SIZE] = {0};
     SPIReadData(data);
-    printf("%p\n", (void*)data);
+    // printf("%p\n", (void*)data);
     
     printf("First byte: 0x%02x\n", data[2]);
     printf("Second byte: 0x%02x\n", data[3]);
@@ -167,15 +193,19 @@ void IT8951SetVcom(uint16_t vcom)
 {
     SPIWriteCommand(USDEF_I80_CMD_VCOM);
     SPIWriteData(0x0001);
+    printf("VCOM SET: %d\n", vcom);
     SPIWriteData(vcom);
 }
 // get vcom
 uint16_t IT8951GetVcom()
 {
+    // BUG: vcom register must be read twice to get correct value
+    // on the first read it returns previous value
     uint8_t buffer[BUFFER_SIZE] = {0};
-    uint16_t Vcom;
+    uint16_t Vcom = 0;
     SPIWriteCommand(USDEF_I80_CMD_VCOM);
     SPIWriteData(0x0000);
+    SPIReadData(buffer);
     SPIReadData(buffer);
     Vcom = ((uint16_t)buffer[2]<<8) | buffer[3];
     // dodac jakas konwersje buffer na vcom
@@ -208,9 +238,17 @@ int main(void) {
     pinMode(RST, OUTPUT);
 
     digitalWrite(RST, HIGH);
-    // IT8951Reset();
+
+    IT8951SystemRun();
+
+    IT8951SetVcom(0x5FA);
+    IT8951GetVcom();
+
     IT8951SetVcom(0x7D0);
     IT8951GetVcom();
 
+    IT8951SetVcom(0x5FA);
+    IT8951GetVcom();
+    IT8951GetVcom();
     return 0;
 }
