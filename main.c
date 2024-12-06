@@ -5,6 +5,11 @@
 #include <string.h>
 #include <stdbool.h>
 
+#define WIDTH 100
+#define HEIGHT 80
+#define BPP 4
+#define IMAGE_BUFFER_SIZE (WIDTH * HEIGHT * BPP / 8)
+
 #define SPI_CHAN 0
 #define SPI_SPEED 500000
 #define BUFFER_SIZE 4
@@ -276,6 +281,12 @@ void IT8951LoadImageStart(IT8951LoadImgInfo* LoadImageInfo)
         LoadImageInfo->PixelFormat<<4 | \
         LoadImageInfo->Rotate \
     );
+    printf("Args: 0x%04x\n", Args);
+    printf("EndianType: 0x%04x\n", LoadImageInfo->EndianType);
+    printf("PixelFormat: 0x%04x\n", LoadImageInfo->PixelFormat);
+    printf("Rotate: 0x%04x\n", LoadImageInfo->Rotate);
+    printf("SourceBufferAddr: 0x%08x\n", LoadImageInfo->SourceBufferAddr);
+    printf("TargetMemoryAddr: 0x%08x\n", LoadImageInfo->TargetMemoryAddr);
 
     SPIWriteCommand(IT8951_TCON_LD_IMG);
     SPIWriteData(Args);
@@ -327,16 +338,44 @@ int main(void) {
 
     digitalWrite(RST, HIGH);
 
+    uint8_t imageBuffer[IMAGE_BUFFER_SIZE] = {0};
+    memset(imageBuffer, 0x69, IMAGE_BUFFER_SIZE);
+
+
+    // load image info
+    IT8951LoadImgInfo loadImgInfo;
+    loadImgInfo.EndianType = IT8951_LDIMG_B_ENDIAN;
+    loadImgInfo.PixelFormat = IT8951_4BPP;
+    loadImgInfo.Rotate = IT8951_ROTATE_0;
+    loadImgInfo.SourceBufferAddr = (uint32_t*)imageBuffer;
+    loadImgInfo.TargetMemoryAddr = 0;
+
+    printf("SourceBufferAddr: 0x%08x\n", (uint32_t*)imageBuffer);
+    printf("ImageBuffer Size: %d\n", sizeof(imageBuffer));
+
+    IT8951Reset();
     IT8951SystemRun();
 
-    IT8951SetVcom(0x5FA);
-    IT8951GetVcom();
-
-    IT8951SetVcom(0x7D0);
-    IT8951GetVcom();
-
-    IT8951SetVcom(0x5FA);
-    IT8951GetVcom();
-    IT8951GetVcom();
+    IT8951LoadImageStart(&loadImgInfo);
+    LCDWaitForReady();
+    // TODO dodac funkcje do ladowania obrazu do bufora drivera przez spi
+    const int chunkSize = 1024;
+    for (int i = 0; i < IMAGE_BUFFER_SIZE; i += chunkSize)
+    {
+        int size = (i + chunkSize > IMAGE_BUFFER_SIZE) ? IMAGE_BUFFER_SIZE - i : chunkSize;
+        LCDWaitForReady();
+        result = wiringPiSPIDataRW(SPI_CHAN, &imageBuffer[i], size);
+        if (result == -1)
+        {
+            perror("SPI communication failed");
+        }
+        else
+        {
+            printf("SPI result: %d\n", result);
+        }
+    }
+    
+    IT8951LoadImageEnd();
+ 
     return 0;
 }
