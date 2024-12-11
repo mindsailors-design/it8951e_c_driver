@@ -8,10 +8,13 @@
                 "-fdiagnostics-color=always",
                 "-g",
                 "${file}",
-                "it8951.c",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}",
-                "-lwiringPi"
+                "-lwiringPi",
+                "-I/usr/include/pipewire-0.3",
+                "-I/usr/include/spa-0.2", 
+                "-D_REENTRANT",
+                "-lpipewire-0.3"
             ],
             "options": {
                 "cwd": "${fileDirname}"

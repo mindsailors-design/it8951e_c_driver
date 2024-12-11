@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "wiringpi.h": "c",
-        "wiringpispi.h": "c"
-    }
+        "wiringpispi.h": "c",
+        "pipewire.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "enabled"
 }
