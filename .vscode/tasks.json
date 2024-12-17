@@ -11,7 +11,8 @@
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}",
                 "-lwiringPi",
-                "-lX11"
+                "-lX11",
+                "-lXext"
             ],
             "options": {
                 "cwd": "${fileDirname}"
