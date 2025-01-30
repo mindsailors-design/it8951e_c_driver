@@ -164,6 +164,9 @@ void IT8951SystemSleep()
 void IT8951SystemInfo()
 {
     SPIWriteCommand(USDEF_I80_CMD_GET_DEV_INFO);
+    // TODO: add read_multi_data function
+    // TODO: make a dev_info struct
+    // TODO: parse dev info to dev_info struct
 }
 
 
