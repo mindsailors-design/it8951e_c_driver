@@ -9,11 +9,13 @@
                 "-g",
                 "${file}",
                 "it8951.c",
+                "read_png_file.c",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}",
                 "-lwiringPi",
                 "-lX11",
-                "-lXext"
+                "-lXext",
+                "-lpng"
             ],
             "options": {
                 "cwd": "${fileDirname}"

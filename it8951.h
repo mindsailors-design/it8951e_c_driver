@@ -18,7 +18,7 @@
 #define BUFFER_SIZE 4
     // const uint8_t BUFFER_SIZE = 4;
 
-// #define CS 10
+#define CS 10
 #define HST_RDY 5
 #define RST 0
 
@@ -80,8 +80,8 @@ typedef struct IT8951DevInfo
 {
     uint16_t PanelWidth;
     uint16_t PanelHeight;
-    uint16_t ImgBugAddrL;
-    uint16_t ImgBugAddrH;
+    uint16_t MemoryAddrL;
+    uint16_t MemoryAddrH;
     uint16_t FWVersion;
     uint16_t LUTVersion;
 } IT8951DevInfo;
@@ -91,9 +91,9 @@ bool IT8951Init(void);
 void LCDWaitForReady();
 
 void sendAndReceiveSPI(const unsigned char *dataToSend, unsigned char *dataReceived, int length);
-void SPIWriteCommand(uint16_t command);
-void SPIWriteData(uint16_t data);
-void SPIReadData(uint8_t* data);
+void IT8951_WriteCommand(uint16_t command);
+void IT8951_WriteData(uint16_t data);
+void IT8951_ReadData(uint8_t* data);
 
 void IT8951_WriteMultiArg(uint16_t command, uint16_t* arg_buff, uint16_t arg_num);
 void IT8951ReadRegister(uint16_t address);
@@ -103,7 +103,7 @@ void IT8951Reset();
 void IT8951SystemRun();
 void IT8951SystemStandby();
 void IT8951SystemSleep();
-void IT8951SystemInfo();
+void IT8951GetSystemInfo();
 
 void IT8951SetVcom(uint16_t vcom);
 uint16_t IT8951GetVcom();

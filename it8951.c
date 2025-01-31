@@ -22,7 +22,7 @@ void sendAndReceiveSPI(const unsigned char *dataToSend, unsigned char *dataRecei
     
 }
 
-void SPIWriteCommand(uint16_t command)
+void IT8951_WriteCommand(uint16_t command)
 {
     unsigned char data_to_send[4];
     data_to_send[0] = 0x60;
@@ -38,7 +38,9 @@ void SPIWriteCommand(uint16_t command)
 
     LCDWaitForReady();
 
+    digitalWrite(CS, LOW);
     int result = wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
+    digitalWrite(CS, HIGH);
     if (result == -1)
     {
         perror("SPI communication failed");
@@ -49,7 +51,7 @@ void SPIWriteCommand(uint16_t command)
     }
 }
 
-void SPIWriteData(uint16_t data)
+void IT8951_WriteData(uint16_t data)
 {
     unsigned char data_to_send[4];
     data_to_send[0] = 0x00;
@@ -64,7 +66,9 @@ void SPIWriteData(uint16_t data)
 
     LCDWaitForReady();
 
+    digitalWrite(CS, LOW);
     int result = wiringPiSPIDataRW(SPI_CHAN, data_to_send, sizeof(data_to_send));
+    digitalWrite(CS, HIGH);
     if (result == -1)
     {
         perror("SPI communication failed");
@@ -75,7 +79,7 @@ void SPIWriteData(uint16_t data)
     }   
 }
 
-void SPIReadData(uint8_t* data)
+void IT8951_ReadData(uint8_t* data)
 {
     // read_preamble = 0x10, read_preamble = 0x00, dummy = 0x00, dummy = 0x00
     data[0] = 0x10;
@@ -85,7 +89,9 @@ void SPIReadData(uint8_t* data)
 
     LCDWaitForReady();
 
+    digitalWrite(CS, LOW);
     int result = wiringPiSPIDataRW(SPI_CHAN, data, BUFFER_SIZE);
+    digitalWrite(CS, HIGH);
     if (result == -1)
     {
         perror("SPI communication failed");
@@ -93,7 +99,7 @@ void SPIReadData(uint8_t* data)
     else
     {
         printf("SPI result: %d\n", result);
-    } 
+    }
     
     printf("Data received: ");
     for (int i = 0; i < BUFFER_SIZE; i++)
@@ -102,26 +108,62 @@ void SPIReadData(uint8_t* data)
     }
     printf("\n");
 }
+
+void IT8951_ReadMultiData(uint16_t *Data_Buf, uint32_t Length)
+{
+    uint8_t data[BUFFER_SIZE];
+    uint8_t rxBuffer[2];
+
+    data[0] = 0x10;
+    data[1] = 0x00;
+    data[2] = 0x00;
+    data[3] = 0x00;
+
+    LCDWaitForReady();
+
+    digitalWrite(CS, LOW);
+    int result = wiringPiSPIDataRW(SPI_CHAN, data, BUFFER_SIZE);
+    if (result == -1)
+    {
+        perror("SPI communication failed");
+    }
+    else
+    {
+        printf("SPI result: %d\n", result);
+    }
+    
+    // read two dummy words first, then usefull data
+
+    // read multi data from it8951
+    for (uint32_t i = 0; i < Length; i++)
+    {
+        wiringPiSPIDataRW(SPI_CHAN, rxBuffer, 2);
+        Data_Buf[i] = rxBuffer[0] << 8 | rxBuffer[1];
+    }
+    
+    digitalWrite(CS, HIGH);
+}
+
 // write multi arg
 void IT8951_WriteMultiArg(uint16_t command, uint16_t* arg_buff, uint16_t arg_num)
 {
     // send command
-    SPIWriteCommand(command);
+    IT8951_WriteCommand(command);
     // send data
     for (uint16_t i = 0; i < arg_num; i++)
     {
-        SPIWriteData(arg_buff[i]);
+        IT8951_WriteData(arg_buff[i]);
     }
 }
 
 // readreg
 void IT8951ReadRegister(uint16_t address)
 {
-    SPIWriteCommand(IT8951_TCON_REG_RD);
-    SPIWriteData(address);
+    IT8951_WriteCommand(IT8951_TCON_REG_RD);
+    IT8951_WriteData(address);
 
     uint8_t data[BUFFER_SIZE] = {0};
-    SPIReadData(data);
+    IT8951_ReadData(data);
     // printf("%p\n", (void*)data);
     
     printf("First byte: 0x%02x\n", data[2]);
@@ -130,9 +172,9 @@ void IT8951ReadRegister(uint16_t address)
 // writereg
 void IT8951WriteRegister(uint16_t address, uint16_t value)
 {
-    SPIWriteCommand(IT8951_TCON_REG_WR);
-    SPIWriteData(address);
-    SPIWriteData(value);
+    IT8951_WriteCommand(IT8951_TCON_REG_WR);
+    IT8951_WriteData(address);
+    IT8951_WriteData(value);
 }
 
 // Host Commands
@@ -148,35 +190,47 @@ void IT8951Reset()
 // run
 void IT8951SystemRun()
 {
-    SPIWriteCommand(IT8951_TCON_SYS_RUN);
+    IT8951_WriteCommand(IT8951_TCON_SYS_RUN);
 }
 // standby
 void IT8951SystemStandby()
 {
-    SPIWriteCommand(IT8951_TCON_STANDBY);
+    IT8951_WriteCommand(IT8951_TCON_STANDBY);
 }
 // sleep 
 void IT8951SystemSleep()
 {
-    SPIWriteCommand(IT8951_TCON_SLEEP);
+    IT8951_WriteCommand(IT8951_TCON_SLEEP);
 }
 // system info
-void IT8951SystemInfo()
+void IT8951GetSystemInfo(void* Buf)
 {
-    SPIWriteCommand(USDEF_I80_CMD_GET_DEV_INFO);
-    // TODO: add read_multi_data function
     // TODO: make a dev_info struct
+    IT8951DevInfo *DevInfo;
+
+    IT8951_WriteCommand(USDEF_I80_CMD_GET_DEV_INFO);
+    // TODO: add read_multi_data function
+    IT8951_ReadMultiData((uint16_t*) Buf, sizeof(IT8951DevInfo)/2);
+
     // TODO: parse dev info to dev_info struct
+    DevInfo = (IT8951DevInfo*)Buf;
+
+    printf("Panel (W,H) = (%d, %d) \r\n", DevInfo->PanelWidth, DevInfo->PanelHeight);
+    // printf("Panel Height: %d\n", DevInfo->PanelHeight);
+    printf("Memory Address = %X\n", DevInfo->MemoryAddrL | DevInfo->MemoryAddrH << 16);
+    // printf("Image Bug Addr H: %d\n", DevInfo->ImgBugAddrH);
+    printf("FW Version: %d\n", DevInfo->FWVersion);
+    printf("LUT Version: %d\n", DevInfo->LUTVersion);
 }
 
 
 // set vcom
 void IT8951SetVcom(uint16_t vcom)
 {
-    SPIWriteCommand(USDEF_I80_CMD_VCOM);
-    SPIWriteData(0x0001);
+    IT8951_WriteCommand(USDEF_I80_CMD_VCOM);
+    IT8951_WriteData(0x0001);
     printf("VCOM SET: %d\n", vcom);
-    SPIWriteData(vcom);
+    IT8951_WriteData(vcom);
 }
 // get vcom
 uint16_t IT8951GetVcom()
@@ -185,10 +239,10 @@ uint16_t IT8951GetVcom()
     // on the first read it returns previous value
     uint8_t buffer[BUFFER_SIZE] = {0};
     uint16_t Vcom = 0;
-    SPIWriteCommand(USDEF_I80_CMD_VCOM);
-    SPIWriteData(0x0000);
-    SPIReadData(buffer);
-    SPIReadData(buffer);
+    IT8951_WriteCommand(USDEF_I80_CMD_VCOM);
+    IT8951_WriteData(0x0000);
+    IT8951_ReadData(buffer);
+    IT8951_ReadData(buffer);
     Vcom = ((uint16_t)buffer[2]<<8) | buffer[3];
     // dodac jakas konwersje buffer na vcom
     printf("VCOM: %d\n", Vcom);
@@ -210,8 +264,8 @@ void IT8951LoadImageStart(IT8951LoadImgInfo* LoadImageInfo)
     printf("SourceBufferAddr: 0x%08x\n", LoadImageInfo->SourceBufferAddr);
     printf("TargetMemoryAddr: 0x%08x\n", LoadImageInfo->TargetMemoryAddr);
 
-    SPIWriteCommand(IT8951_TCON_LD_IMG);
-    SPIWriteData(Args);
+    IT8951_WriteCommand(IT8951_TCON_LD_IMG);
+    IT8951_WriteData(Args);
 }
 
 // load image area start
@@ -233,11 +287,13 @@ void IT8951LoadImageAreaStart(IT8951LoadImgInfo* LoadImageInfo, IT8951AreaImgInf
 // load image end
 void IT8951LoadImageEnd()
 {
-    SPIWriteCommand(IT8951_TCON_LD_IMG_END);
+    IT8951_WriteCommand(IT8951_TCON_LD_IMG_END);
 }
 
 bool IT8951Init(void)
 {
+    IT8951DevInfo *DevInfo;
+
     int result = wiringPiSetup();
     printf("%d\n", result);
     if (result == -1)
@@ -256,9 +312,29 @@ bool IT8951Init(void)
 
     pinMode(HST_RDY, INPUT);
     pinMode(RST, OUTPUT);
+    pinMode(CS, OUTPUT);
+
+    // pinMode(HST_RDY, OUTPUT);
+    // pinMode(RST, OUTPUT);
+
+    // digitalWrite(HST_RDY, HIGH);
+    // digitalWrite(RST, HIGH);
+
+    // digitalWrite(HST_RDY, LOW);
+    // digitalWrite(RST, LOW);
+
+    // digitalWrite(HST_RDY, HIGH);
+    // digitalWrite(RST, HIGH);
 
     digitalWrite(RST, HIGH);
+    digitalWrite(CS, HIGH);
 
+    IT8951Reset();
+    IT8951SystemRun();
+
+    IT8951GetSystemInfo(&DevInfo);
+
+    // TODO: check if vcom from the device is different than default (or set), if so then set_vcom()
     return 1;
 }
 

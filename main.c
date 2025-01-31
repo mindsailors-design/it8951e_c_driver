@@ -24,19 +24,18 @@ int main(int argc, char *argv[])
                 printf("Failed to load PNG image\n");
         }
 
-        // bool init_result = IT8951Init();
-        // if (init_result)
-        // {
-        // printf("IT8951 initialized\n");
-        // }
-        // else
-        // {
-        // printf("IT8951 initialization failed\n");
-        // return 1;
-        // }
+        bool init_result = IT8951Init();
+        if (init_result)
+        {
+                printf("IT8951 initialized\n");
+        }
+        else
+        {
+                printf("IT8951 initialization failed\n");
+                return 1;
+        }
 
-        // IT8951Reset();
-        // IT8951SystemRun();
+        IT8951GetVcom();
 
         // uint8_t imageBuffer[IMAGE_BUFFER_SIZE] = {0};
         // memset(imageBuffer, 0x69, IMAGE_BUFFER_SIZE);
