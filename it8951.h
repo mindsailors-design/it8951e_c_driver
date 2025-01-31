@@ -82,8 +82,8 @@ typedef struct IT8951DevInfo
     uint16_t PanelHeight;
     uint16_t MemoryAddrL;
     uint16_t MemoryAddrH;
-    uint16_t FWVersion;
-    uint16_t LUTVersion;
+    uint16_t FWVersion[8];
+    uint16_t LUTVersion[8];
 } IT8951DevInfo;
 
 bool IT8951Init(void);

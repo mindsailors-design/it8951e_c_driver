@@ -216,11 +216,28 @@ void IT8951GetSystemInfo(void* Buf)
     DevInfo = (IT8951DevInfo*)Buf;
 
     printf("Panel (W,H) = (%d, %d) \r\n", DevInfo->PanelWidth, DevInfo->PanelHeight);
-    // printf("Panel Height: %d\n", DevInfo->PanelHeight);
     printf("Memory Address = %X\n", DevInfo->MemoryAddrL | DevInfo->MemoryAddrH << 16);
-    // printf("Image Bug Addr H: %d\n", DevInfo->ImgBugAddrH);
-    printf("FW Version: %d\n", DevInfo->FWVersion);
-    printf("LUT Version: %d\n", DevInfo->LUTVersion);
+    
+    char firmware_version[9];
+    char lut_version[9];
+
+    for (int i = 0; i < 4; i++)
+    {
+        firmware_version[i * 2] = (char)(DevInfo->FWVersion[i] >> 8);
+        firmware_version[i * 2 + 1] = (char)(DevInfo->FWVersion[i] & 0xFF);
+    }
+    firmware_version[8] = '\0';
+    
+    printf("FW Version: %s\n", firmware_version);
+    
+    for (int8_t i = 0; i < 4; i++)
+    {
+        lut_version[i * 2] = (char)(DevInfo->LUTVersion[i] >> 8);
+        lut_version[i * 2 + 1] = (char)(DevInfo->LUTVersion[i] & 0xFF);
+    }
+    lut_version[8] = '\0';
+
+    printf("LUT Version: %s\n", lut_version);
 }
 
 
