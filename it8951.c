@@ -1,5 +1,12 @@
 #include "it8951.h"
 
+uint8_t* Refresh_Frame_Buf = NULL;
+
+uint8_t* Panel_Frame_Buff = NULL;
+uint8_t* Panel_Area_Frame_Buff = NULL;
+
+bool Four_Byte_Align = false;
+
 void LCDWaitForReady()
 {
 	bool ulData = digitalRead(HST_RDY);
@@ -156,8 +163,48 @@ void IT8951_WriteMultiArg(uint16_t command, uint16_t* arg_buff, uint16_t arg_num
     }
 }
 
+void IT8951_WriteMultiData(uint16_t* Data_Buff, uint32_t Length)
+{
+    uint8_t data[BUFFER_SIZE];
+    uint8_t rxBuffer[2];
+
+    data[0] = 0x10;
+    data[1] = 0x00;
+    data[2] = 0x00;
+    data[3] = 0x00;
+
+    LCDWaitForReady();
+
+    digitalWrite(CS, LOW);
+    int result = wiringPiSPIDataRW(SPI_CHAN, data, BUFFER_SIZE);
+    if (result == -1)
+    {
+        perror("SPI communication failed");
+    }
+    // else
+    // {
+    //     printf("SPI result: %d\n", result);
+    // }
+
+    LCDWaitForReady();
+
+    uint8_t txBuffer[2];
+
+    for (uint32_t i = 0; i < Length; i++)
+    {
+        // printf("i: %d\n", i);
+        txBuffer[0] = (Data_Buff[i] >> 8) & 0xFF;
+        txBuffer[1] = (Data_Buff[i]) & 0xFF;
+        result = wiringPiSPIDataRW(SPI_CHAN, txBuffer, 2);
+        if (result == -1)
+            perror("SPI communication failed");
+    }
+    digitalWrite(CS, HIGH);
+    
+}
+
 // readreg
-void IT8951ReadRegister(uint16_t address)
+uint16_t IT8951ReadRegister(uint16_t address)
 {
     IT8951_WriteCommand(IT8951_TCON_REG_RD);
     IT8951_WriteData(address);
@@ -209,7 +256,9 @@ void IT8951GetSystemInfo(void* Buf)
     IT8951DevInfo *DevInfo;
 
     IT8951_WriteCommand(USDEF_I80_CMD_GET_DEV_INFO);
-    // TODO: add read_multi_data function
+
+    LCDWaitForReady();
+
     IT8951_ReadMultiData((uint16_t*) Buf, sizeof(IT8951DevInfo)/2);
 
     // TODO: parse dev info to dev_info struct
@@ -221,7 +270,7 @@ void IT8951GetSystemInfo(void* Buf)
     char firmware_version[9];
     char lut_version[9];
 
-    for (int i = 0; i < 4; i++)
+    for (int8_t i = 0; i < 4; i++)
     {
         firmware_version[i * 2] = (char)(DevInfo->FWVersion[i] >> 8);
         firmware_version[i * 2 + 1] = (char)(DevInfo->FWVersion[i] & 0xFF);
@@ -240,6 +289,14 @@ void IT8951GetSystemInfo(void* Buf)
     printf("LUT Version: %s\n", lut_version);
 }
 
+void IT8951_SetTargetMemoryAddress(uint32_t TargetMemoryAddress)
+{
+    uint16_t WordH = (uint16_t)((TargetMemoryAddress >> 16) & 0x0000FFFF);
+    uint16_t WordL = (uint16_t)(TargetMemoryAddress & 0x0000FFFF);
+
+    IT8951WriteRegister(LISAR+2, WordH);
+    IT8951WriteRegister(LISAR, WordL);
+}
 
 // set vcom
 void IT8951SetVcom(uint16_t vcom)
@@ -307,10 +364,8 @@ void IT8951LoadImageEnd()
     IT8951_WriteCommand(IT8951_TCON_LD_IMG_END);
 }
 
-bool IT8951Init(void)
+bool GPIO_Init(void)
 {
-    IT8951DevInfo *DevInfo;
-
     int result = wiringPiSetup();
     printf("%d\n", result);
     if (result == -1)
@@ -331,78 +386,230 @@ bool IT8951Init(void)
     pinMode(RST, OUTPUT);
     pinMode(CS, OUTPUT);
 
-    // pinMode(HST_RDY, OUTPUT);
-    // pinMode(RST, OUTPUT);
-
-    // digitalWrite(HST_RDY, HIGH);
-    // digitalWrite(RST, HIGH);
-
-    // digitalWrite(HST_RDY, LOW);
-    // digitalWrite(RST, LOW);
-
-    // digitalWrite(HST_RDY, HIGH);
-    // digitalWrite(RST, HIGH);
-
     digitalWrite(RST, HIGH);
     digitalWrite(CS, HIGH);
+}
+
+IT8951DevInfo IT8951Init(uint16_t VCOM)
+{
+    IT8951DevInfo DevInfo;
 
     IT8951Reset();
     IT8951SystemRun();
 
     IT8951GetSystemInfo(&DevInfo);
 
-    // TODO: check if vcom from the device is different than default (or set), if so then set_vcom()
-    return 1;
+    // Enable pack write
+    IT8951WriteRegister(I80CPCR, 0x0001);
+
+    // set vcom if stored is different
+    if (VCOM != IT8951GetVcom())
+    {
+        IT8951SetVcom(VCOM);
+        printf("Vcom = -%.02fV\n", (float)IT8951GetVcom()/1000);
+    }
+
+    return DevInfo;
 }
 
-bool IT8951DisplayImage()
+void IT8951DisplayArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t mode){
+    uint16_t Args[5];
+    Args[0] = x;
+    Args[1] = y;
+    Args[2] = w;
+    Args[3] = h;
+    Args[4] = mode;
+
+    IT8951_WriteMultiArg(USDEF_I80_CMD_DPY_AREA, Args, 5);
+}
+
+void IT8951DisplayAreaBuf(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t mode, uint32_t Target_Memory_Address){
+    uint16_t Args[7];
+    Args[0] = x;
+    Args[1] = y;
+    Args[2] = w;
+    Args[3] = h;
+    Args[4] = mode;
+    Args[5] = (uint16_t)Target_Memory_Address;
+    Args[6] = (uint16_t)(Target_Memory_Address>>16);
+
+    IT8951_WriteMultiArg(USDEF_I80_CMD_DPY_BUF_AREA, Args, 7);
+}
+
+void IT8951DisplayImage_1bpp(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t mode, uint32_t Target_Memory_Address, uint8_t Back_Gray_Val, uint8_t Front_Gray_Val)
 {
-    bool init_result = IT8951Init();
-    if (init_result)
+    IT8951WriteRegister(UP1SR+2, IT8951ReadRegister(UP1SR+2) | (1<<2));
+    IT8951WriteRegister(BGVR, (Front_Gray_Val<<8) | Back_Gray_Val);
+
+    if (Target_Memory_Address == 0)
     {
-        printf("IT8951 initialized\n");
+        // it8951_display_area(x,y,w,h,mode);
+        IT8951DisplayArea(x, y, w, h, mode);
     }
     else
     {
-        printf("IT8951 initialization failed\n");
-        return 1;
+        // it8951_display_areaBuf(x,y,w,h,mode,Target_Memory_Address);
+        IT8951DisplayAreaBuf(x, y, w, h, mode, Target_Memory_Address);
     }
     
-    IT8951Reset();
-    IT8951SystemRun();
-
-    uint8_t imageBuffer[IMAGE_BUFFER_SIZE] = {0};
-    memset(imageBuffer, 0x69, IMAGE_BUFFER_SIZE);
-
-    IT8951LoadImgInfo loadImgInfo;
-    loadImgInfo.EndianType = IT8951_LDIMG_B_ENDIAN;
-    loadImgInfo.PixelFormat = IT8951_4BPP;
-    loadImgInfo.Rotate = IT8951_ROTATE_0;
-    loadImgInfo.SourceBufferAddr = (uint32_t*)imageBuffer;
-    loadImgInfo.TargetMemoryAddr = 0;
-
-    printf("SourceBufferAddr: 0x%08x\n", (uint32_t*)imageBuffer);
-    printf("ImageBuffer Size: %d\n", sizeof(imageBuffer));
-
-    IT8951LoadImageStart(&loadImgInfo);
     LCDWaitForReady();
-    // TODO dodac funkcje do ladowania obrazu do bufora drivera przez spi
-    const int chunkSize = 1024;
-    int result = 0;
-    for (int i = 0; i < IMAGE_BUFFER_SIZE; i += chunkSize)
+
+    IT8951WriteRegister(UP1SR+2, IT8951ReadRegister(UP1SR+2) & ~(1<<2));
+
+}
+
+void IT8951_HostAreaPackedPixelWrite_1bp(IT8951LoadImgInfo* LoadImageInfo, IT8951AreaImgInfo* AreaImgInfo, bool Packed_Write)
+{
+    uint16_t Source_Buffer_Width, Source_Buffer_Height, Source_Buffer_Length;
+
+    uint16_t* Source_Buffer = (uint16_t*)LoadImageInfo->SourceBufferAddr;
+    IT8951_SetTargetMemoryAddress(LoadImageInfo->TargetMemoryAddr);
+    IT8951LoadImageAreaStart(LoadImageInfo, AreaImgInfo);
+
+    // from byte to word
+    // use 8bpp to display 1bpp, so here, divide by 2, because every byte has full bit
+    Source_Buffer_Width = AreaImgInfo->Width/2;
+    Source_Buffer_Height - AreaImgInfo->Height;
+    Source_Buffer_Length = Source_Buffer_Width * Source_Buffer_Height;
+
+    if (Packed_Write == true)
     {
-        int size = (i + chunkSize > IMAGE_BUFFER_SIZE) ? IMAGE_BUFFER_SIZE - i : chunkSize;
-        LCDWaitForReady();
-        result = wiringPiSPIDataRW(SPI_CHAN, &imageBuffer[i], size);
-        if (result == -1)
+        IT8951_WriteMultiData(Source_Buffer, Source_Buffer_Length);
+    }
+    else
+    {
+        for (uint32_t i = 0; i < Source_Buffer_Height; i++)
         {
-            perror("SPI communication failed");
-        }
-        else
-        {
-            printf("SPI result: %d\n", result);
+            for (uint32_t j = 0; j < Source_Buffer_Width; j++)
+            {
+                IT8951_WriteData(*Source_Buffer);
+                Source_Buffer++;
+            }
         }
     }
-    
+
     IT8951LoadImageEnd();
 }
+
+void IT8951_HostAreaPackedPixelWrite_4bpp(IT8951LoadImgInfo* LoadImageInfo, IT8951AreaImgInfo* AreaImgInfo, bool Packed_Write)
+{
+    uint16_t Source_Buffer_Width, Source_Buffer_Height, Source_Buffer_Length;
+
+    uint16_t* Source_Buffer = (uint16_t*)LoadImageInfo->SourceBufferAddr;
+    IT8951_SetTargetMemoryAddress(LoadImageInfo->TargetMemoryAddr);
+    IT8951LoadImageAreaStart(LoadImageInfo, AreaImgInfo);
+
+    // from byte to word
+    Source_Buffer_Width = (AreaImgInfo->Width*4/8)/2;
+    Source_Buffer_Height - AreaImgInfo->Height;
+    Source_Buffer_Length = Source_Buffer_Width * Source_Buffer_Height;
+
+    if (Packed_Write == true)
+    {
+        IT8951_WriteMultiData(Source_Buffer, Source_Buffer_Length);
+    }
+    else
+    {
+        for (uint32_t i = 0; i < Source_Buffer_Height; i++)
+        {
+            for (uint32_t j = 0; j < Source_Buffer_Width; j++)
+            {
+                if (Source_Buffer == NULL)
+                {
+                    fprintf(stderr, "Error: Source_Buffer became NULL at i=%u, j=%u\n", i, j);
+                    return;
+                }
+                
+                IT8951_WriteData(*Source_Buffer);
+                Source_Buffer++;
+            }   
+        }   
+    }
+
+    IT8951LoadImageEnd();
+}
+
+void IT8951_ClearRefresh(IT8951DevInfo Dev_Info, uint32_t Target_Memory_Address, uint16_t Mode)
+{
+    uint32_t Image_Size = ((Dev_Info.PanelWidth * 4 % 8 ==0)? (Dev_Info.PanelWidth * 4 / 8): (Dev_Info.PanelWidth * 4 / 8 + 1)) * Dev_Info.PanelHeight;
+    uint16_t* Frame_Buf = malloc(Image_Size);
+    memset(Frame_Buf, 0xFF, Image_Size);
+
+    IT8951LoadImgInfo Load_Img_Info;
+    IT8951AreaImgInfo Area_Img_Info;
+
+    LCDWaitForReady();
+
+    Load_Img_Info.SourceBufferAddr = Frame_Buf;
+    Load_Img_Info.EndianType = IT8951_LDIMG_L_ENDIAN;
+    Load_Img_Info.PixelFormat =  IT8951_4BPP;
+    Load_Img_Info.Rotate = IT8951_ROTATE_0;
+    Load_Img_Info.TargetMemoryAddr = Target_Memory_Address;
+
+    Area_Img_Info.X = 0;
+    Area_Img_Info.Y = 0;
+    Area_Img_Info.Width = Dev_Info.PanelWidth;
+    Area_Img_Info.Height = Dev_Info.PanelHeight;
+
+    IT8951_HostAreaPackedPixelWrite_4bpp(&Load_Img_Info, &Area_Img_Info, true);
+
+    IT8951DisplayArea(0, 0, Dev_Info.PanelWidth, Dev_Info.PanelHeight, Mode);
+
+    free(Frame_Buf);
+    Frame_Buf = NULL;
+    
+}
+
+void IT8951DisplayImage_1bpp_Refresh(uint8_t* Frame_Buf, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t mode, uint32_t Target_Memory_Address, bool Packed_Write)
+{
+    uint32_t Image_Size = ((w * 4 % 8 ==0)? (w * 4 / 8): (w * 4 / 8 + 1)) * h;
+    uint16_t* Dummy_Buf = malloc(Image_Size);
+    memset(Dummy_Buf, 0x11, Image_Size);
+
+    IT8951LoadImgInfo LoadImgInfo;
+    IT8951AreaImgInfo AreaImgInfo;
+
+    LCDWaitForReady();
+
+    LoadImgInfo.SourceBufferAddr = Frame_Buf;
+    LoadImgInfo.EndianType = IT8951_LDIMG_L_ENDIAN;
+    LoadImgInfo.PixelFormat = IT8951_8BPP;
+    LoadImgInfo.Rotate = IT8951_ROTATE_0;
+    LoadImgInfo.TargetMemoryAddr = Target_Memory_Address;
+
+    AreaImgInfo.X = x/8;
+    AreaImgInfo.Y = y;
+    AreaImgInfo.Width = w/8;
+    AreaImgInfo.Height = h;
+
+    IT8951_HostAreaPackedPixelWrite_4bpp(&LoadImgInfo, &AreaImgInfo, Packed_Write);
+
+    IT8951DisplayImage_1bpp(x, y, w, h, mode, Target_Memory_Address, 0xF0, 0x00);
+} 
+
+// uint8_t Display_BMP_Example(uint16_t Panel_Width, uint16_t Panel_Height, uint32_t Init_Target_Memory_Addr, uint8_t BitsPerPixel)
+// {
+//     uint16_t Width;
+//     if (Four_Byte_Align == true)
+//     {
+//         Width = Panel_Width - (Panel_Width % 32);
+//     }
+//     else
+//     {
+//         Width = Panel_Width;
+//     }
+
+//     uint16_t Height = Panel_Height;
+    
+//     uint32_t Imagesize;
+
+//     Imagesize = ((Width * BitsPerPixel % 8 == 0)? (Width * BitsPerPixel / 8): (Width * BitsPerPixel / 8 + 1)) * Height;
+//     if ((Refresh_Frame_Buf = (uint8_t *)malloc(Imagesize)) == NULL)
+//     {
+//         printf("Failed to apply for black memory... \r\n");
+//         return -1;
+//     }
+
+
+    
+// }
