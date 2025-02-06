@@ -5,6 +5,15 @@
 #include "it8951.h"
 #include "read_png_file.h"
 
+uint16_t VCOM = 2140;
+
+IT8951DevInfo Dev_Info;
+uint16_t Panel_Width;
+uint16_t Panel_Height;
+uint32_t Target_Memory_Address;
+
+uint8_t epd_mode = 0;
+
 int main(int argc, char *argv[])
 {
         const char *filename = "sleeping_penguin.png";
@@ -18,60 +27,59 @@ int main(int argc, char *argv[])
 
                 // Use the image buffer (e.g., pass it to another function)
 
-                // Free buffer after use
-                free(image_buffer);
+                
         } else {
                 printf("Failed to load PNG image\n");
         }
 
-        bool init_result = IT8951Init();
-        if (init_result)
-        {
-                printf("IT8951 initialized\n");
-        }
-        else
-        {
-                printf("IT8951 initialization failed\n");
-                return 1;
-        }
+        GPIO_Init();
 
-        IT8951GetVcom();
+        Dev_Info = IT8951Init(VCOM);
 
-        // uint8_t imageBuffer[IMAGE_BUFFER_SIZE] = {0};
-        // memset(imageBuffer, 0x69, IMAGE_BUFFER_SIZE);
+        Target_Memory_Address = Dev_Info.MemoryAddrL | (Dev_Info.MemoryAddrH << 16);
 
-        // IT8951LoadImgInfo loadImgInfo;
-        // loadImgInfo.EndianType = IT8951_LDIMG_B_ENDIAN;
-        // loadImgInfo.PixelFormat = IT8951_4BPP;
-        // loadImgInfo.Rotate = IT8951_ROTATE_0;
-        // loadImgInfo.SourceBufferAddr = (uint32_t*)imageBuffer;
-        // loadImgInfo.TargetMemoryAddr = 0;
+        IT8951_ClearRefresh(Dev_Info, Target_Memory_Address, DSP_MD_GC16);
 
-        // printf("SourceBufferAddr: 0x%08x\n", (uint32_t*)imageBuffer);
-        // printf("ImageBuffer Size: %d\n", sizeof(imageBuffer));
-
-        // IT8951LoadImageStart(&loadImgInfo);
-        // LCDWaitForReady();
-        // // TODO dodac funkcje do ladowania obrazu do bufora drivera przez spi
-        // const int chunkSize = 1024;
-        // int result = 0;
-        // for (int i = 0; i < IMAGE_BUFFER_SIZE; i += chunkSize)
-        // {
-        // int size = (i + chunkSize > IMAGE_BUFFER_SIZE) ? IMAGE_BUFFER_SIZE - i : chunkSize;
-        // LCDWaitForReady();
-        // result = wiringPiSPIDataRW(SPI_CHAN, &imageBuffer[i], size);
-        // if (result == -1)
-        // {
-        //         perror("SPI communication failed");
-        // }
-        // else
-        // {
-        //         printf("SPI result: %d\n", result);
-        // }
-        // }
-
-        // IT8951LoadImageEnd();
+        IT8951DisplayImage_1bpp_Refresh(image_buffer, 0, 0, width, height, DSP_MD_GC16, Target_Memory_Address, true);
 
 
+        // Free buffer after use
+        free(image_buffer);
+        
         return 0;
 }
+
+/*
+void IT8951HostAreaPackedPixelWrite(IT8951LdImgInfo* pstLdImgInfo, IT8951AreaImgInfo* pstAreaImgInfo)
+{
+	TDWord i,j;
+	//Source buffer address of Host
+	TWord* pusFrameBuf = (TWord*)pstLdImgInfo->ulStartFBAddr;
+	
+	//Set Image buffer(IT8951) Base address
+	IT8951SetImgBufBaseAddr(pstLdImgInfo->ulImgBufBaseAddr);
+	
+	//Send Load Image start Cmd
+	IT8951LoadImgAreaStart(pstLdImgInfo , pstAreaImgInfo);
+	
+	//Host Write Data
+	for(j=0;j< pstAreaImgInfo->usHeight;j++)
+	{
+		#ifdef __SPI_2_I80_INF__ //{__SPI_2_I80_INF__
+			//Write 1 Line for each SPI transfer
+			LCDWriteNData(pusFrameBuf, pstAreaImgInfo->usWidth/2);
+			pusFrameBuf += pstAreaImgInfo->usWidth/2;//Change to Next line of loaded image 
+													 // (supposed the Continuous image content in hsot frame buffer )
+		#else
+	for(i=0;i< pstAreaImgInfo->usWidth/2;i++)
+	{
+		//Write a Word(2-Bytes) for each time
+		LCDWriteData(*pusFrameBuf);
+		pusFrameBuf++;
+	}
+	#endif//}__SPI_2_I80_INF__
+	}
+	//Send Load Img End Command
+	IT8951LoadImgEnd();
+}
+*/
