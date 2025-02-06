@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
 #include <string.h>
@@ -48,16 +49,60 @@
 #define IT8951_ROTATE_180   2
 #define IT8951_ROTATE_270   3
 
-
 // Pixel mode (Bit per Pixel)
 #define IT8951_2BPP   0
 #define IT8951_3BPP   1
 #define IT8951_4BPP   2
 #define IT8951_8BPP   3
 
+/*-----------------------------------------------------------------------
+IT8951 Registers defines
+------------------------------------------------------------------------*/
+//Register Base Address
+#define DISPLAY_REG_BASE 0x1000               //Register RW access
+
+//Base Address of Basic LUT Registers
+#define LUT0EWHR  (DISPLAY_REG_BASE + 0x00)   //LUT0 Engine Width Height Reg
+#define LUT0XYR   (DISPLAY_REG_BASE + 0x40)   //LUT0 XY Reg
+#define LUT0BADDR (DISPLAY_REG_BASE + 0x80)   //LUT0 Base Address Reg
+#define LUT0MFN   (DISPLAY_REG_BASE + 0xC0)   //LUT0 Mode and Frame number Reg
+#define LUT01AF   (DISPLAY_REG_BASE + 0x114)  //LUT0 and LUT1 Active Flag Reg
+
+//Update Parameter Setting Register
+#define UP0SR     (DISPLAY_REG_BASE + 0x134)  //Update Parameter0 Setting Reg
+#define UP1SR     (DISPLAY_REG_BASE + 0x138)  //Update Parameter1 Setting Reg
+#define LUT0ABFRV (DISPLAY_REG_BASE + 0x13C)  //LUT0 Alpha blend and Fill rectangle Value
+#define UPBBADDR  (DISPLAY_REG_BASE + 0x17C)  //Update Buffer Base Address
+#define LUT0IMXY  (DISPLAY_REG_BASE + 0x180)  //LUT0 Image buffer X/Y offset Reg
+#define LUTAFSR   (DISPLAY_REG_BASE + 0x224)  //LUT Status Reg (status of All LUT Engines)
+#define BGVR      (DISPLAY_REG_BASE + 0x250)  //Bitmap (1bpp) image color table
+
+//System Registers
+#define SYS_REG_BASE 0x0000
+
+//Address of System Registers
+#define I80CPCR (SYS_REG_BASE + 0x04)
+
 //Endian Type
 #define IT8951_LDIMG_L_ENDIAN   0
 #define IT8951_LDIMG_B_ENDIAN   1
+
+//Memory Converter Registers
+#define MCSR_BASE_ADDR 0x0200
+#define MCSR  (MCSR_BASE_ADDR + 0x0000)
+#define LISAR (MCSR_BASE_ADDR + 0x0008)
+
+// Display Modes
+// these waveform modes are described here:
+// http://www.waveshare.net/w/upload/c/c4/E-paper-mode-declaration.pdf
+#define DSP_MD_INIT  0
+#define DSP_MD_DU    1
+#define DSP_MD_GC16  2
+#define DSP_MD_GL16  3
+#define DSP_MD_GLR16 4
+#define DSP_MD_GLD16 5
+#define DSP_MD_A2    6
+#define DSP_MD_DU4   7
 
 typedef struct IT8951LoadImgInfo
 {
@@ -86,7 +131,8 @@ typedef struct IT8951DevInfo
     uint16_t LUTVersion[8];
 } IT8951DevInfo;
 
-bool IT8951Init(void);
+bool GPIO_Init(void);
+IT8951DevInfo IT8951Init(uint16_t VCOM);
 
 void LCDWaitForReady();
 
@@ -96,14 +142,15 @@ void IT8951_WriteData(uint16_t data);
 void IT8951_ReadData(uint8_t* data);
 
 void IT8951_WriteMultiArg(uint16_t command, uint16_t* arg_buff, uint16_t arg_num);
-void IT8951ReadRegister(uint16_t address);
+void IT8951_WriteMultiData(uint16_t* Data_Buff, uint32_t Length);
+uint16_t IT8951ReadRegister(uint16_t address);
 void IT8951WriteRegister(uint16_t address, uint16_t value);
 
 void IT8951Reset();
 void IT8951SystemRun();
 void IT8951SystemStandby();
 void IT8951SystemSleep();
-void IT8951GetSystemInfo();
+void IT8951GetSystemInfo(void* Buf);
 
 void IT8951SetVcom(uint16_t vcom);
 uint16_t IT8951GetVcom();
@@ -112,5 +159,10 @@ void IT8951LoadImageStart(IT8951LoadImgInfo* LoadImageInfo);
 void IT8951LoadImageAreaStart(IT8951LoadImgInfo* LoadImageInfo, IT8951AreaImgInfo* AreaImgInfo);
 void IT8951LoadImageEnd();
 
-bool IT8951DisplayImage();
+void IT8951_ClearRefresh(IT8951DevInfo Dev_Info, uint32_t Target_Memory_Address, uint16_t Mode);
+
+void IT8951DisplayImage_1bpp_Refresh(uint8_t* Frame_Buf, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t mode, uint32_t Target_Memory_Address, bool Packed_Write);
+void IT8951DisplayImage_4bpp_Refresh(uint8_t* Frame_Buf, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t mode, uint32_t Target_Memory_Address, bool Packed_Write);
+
+uint8_t Display_BMP_Example(uint16_t Panel_Width, uint16_t Panel_Height, uint32_t Init_Target_Memory_Addr, uint8_t BitsPerPixel);
 #endif
