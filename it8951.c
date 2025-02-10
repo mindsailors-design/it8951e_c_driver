@@ -168,7 +168,7 @@ void IT8951_WriteMultiData(uint16_t* Data_Buff, uint32_t Length)
     uint8_t data[BUFFER_SIZE];
     uint8_t rxBuffer[2];
 
-    data[0] = 0x10;
+    data[0] = 0x00;
     data[1] = 0x00;
     data[2] = 0x00;
     data[3] = 0x00;
@@ -399,6 +399,10 @@ IT8951DevInfo IT8951Init(uint16_t VCOM)
 
     IT8951GetSystemInfo(&DevInfo);
 
+    uint32_t Target_Memory_Address = DevInfo.MemoryAddrL | (DevInfo.MemoryAddrH << 16);
+
+    IT8951_SetTargetMemoryAddress(Target_Memory_Address);
+
     // Enable pack write
     IT8951WriteRegister(I80CPCR, 0x0001);
 
@@ -496,7 +500,6 @@ void IT8951_HostAreaPackedPixelWrite_4bpp(IT8951LoadImgInfo* LoadImageInfo, IT89
     uint16_t Source_Buffer_Width, Source_Buffer_Height, Source_Buffer_Length;
 
     uint16_t* Source_Buffer = (uint16_t*)LoadImageInfo->SourceBufferAddr;
-    IT8951_SetTargetMemoryAddress(LoadImageInfo->TargetMemoryAddr);
     IT8951LoadImageAreaStart(LoadImageInfo, AreaImgInfo);
 
     // from byte to word
