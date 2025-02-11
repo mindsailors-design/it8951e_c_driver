@@ -109,7 +109,7 @@ typedef struct IT8951LoadImgInfo
     uint16_t EndianType;
     uint16_t PixelFormat;
     uint16_t Rotate;
-    uint32_t* SourceBufferAddr;
+    uint8_t* SourceBufferAddr;
     uint32_t TargetMemoryAddr;
 } IT8951LoadImgInfo;
 

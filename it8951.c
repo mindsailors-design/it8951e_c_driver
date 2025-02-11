@@ -565,54 +565,24 @@ void IT8951_ClearRefresh(IT8951DevInfo Dev_Info, uint32_t Target_Memory_Address,
 
 void IT8951DisplayImage_1bpp_Refresh(uint8_t* Frame_Buf, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t mode, uint32_t Target_Memory_Address, bool Packed_Write)
 {
-    uint32_t Image_Size = ((w * 4 % 8 ==0)? (w * 4 / 8): (w * 4 / 8 + 1)) * h;
-    uint16_t* Dummy_Buf = malloc(Image_Size);
-    memset(Dummy_Buf, 0x11, Image_Size);
-
     IT8951LoadImgInfo LoadImgInfo;
     IT8951AreaImgInfo AreaImgInfo;
 
     LCDWaitForReady();
 
     LoadImgInfo.SourceBufferAddr = Frame_Buf;
-    LoadImgInfo.EndianType = IT8951_LDIMG_L_ENDIAN;
-    LoadImgInfo.PixelFormat = IT8951_8BPP;
+    LoadImgInfo.EndianType = IT8951_LDIMG_B_ENDIAN;
+    LoadImgInfo.PixelFormat = IT8951_4BPP;
     LoadImgInfo.Rotate = IT8951_ROTATE_0;
     LoadImgInfo.TargetMemoryAddr = Target_Memory_Address;
 
-    AreaImgInfo.X = x/8;
+    AreaImgInfo.X = x;
     AreaImgInfo.Y = y;
-    AreaImgInfo.Width = w/8;
+    AreaImgInfo.Width = w;
     AreaImgInfo.Height = h;
 
     IT8951_HostAreaPackedPixelWrite_4bpp(&LoadImgInfo, &AreaImgInfo, Packed_Write);
 
-    IT8951DisplayImage_1bpp(x, y, w, h, mode, Target_Memory_Address, 0xF0, 0x00);
+    IT8951DisplayArea(0, 0, w, h, mode);
+    // IT8951DisplayImage_1bpp(x, y, w, h, mode, Target_Memory_Address, 0xF0, 0x00);
 } 
-
-// uint8_t Display_BMP_Example(uint16_t Panel_Width, uint16_t Panel_Height, uint32_t Init_Target_Memory_Addr, uint8_t BitsPerPixel)
-// {
-//     uint16_t Width;
-//     if (Four_Byte_Align == true)
-//     {
-//         Width = Panel_Width - (Panel_Width % 32);
-//     }
-//     else
-//     {
-//         Width = Panel_Width;
-//     }
-
-//     uint16_t Height = Panel_Height;
-    
-//     uint32_t Imagesize;
-
-//     Imagesize = ((Width * BitsPerPixel % 8 == 0)? (Width * BitsPerPixel / 8): (Width * BitsPerPixel / 8 + 1)) * Height;
-//     if ((Refresh_Frame_Buf = (uint8_t *)malloc(Imagesize)) == NULL)
-//     {
-//         printf("Failed to apply for black memory... \r\n");
-//         return -1;
-//     }
-
-
-    
-// }

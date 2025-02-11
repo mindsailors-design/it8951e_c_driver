@@ -1,11 +1,14 @@
 #include "read_png_file.h"
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize.h"
 
-void read_png_file(const char *filename, unsigned char **image_buffer, int *width, int *height, int *channels) {
+uint8_t* read_png_file(const char *filename, int *width, int *height, int* bit_depth) 
+{
         FILE *fp = fopen(filename, "rb");
         if (!fp)
         {
                 perror("File opening failed");
-                return;
+                return NULL;
         }
 
         // Validate PNG file signature
@@ -13,7 +16,9 @@ void read_png_file(const char *filename, unsigned char **image_buffer, int *widt
         fread(header, 1, 8, fp);
         if (png_sig_cmp(header, 0, 8))
         {
-                printf("Not a valid PNG file\n");
+                printf(stderr, "Error: %s is not a valid PNG file\n", filename);
+                fclose(fp);
+                return NULL;
         }
         
         // Create PNG structures
@@ -21,7 +26,7 @@ void read_png_file(const char *filename, unsigned char **image_buffer, int *widt
         if (!png)
         {
                 fclose(fp);
-                return;
+                return NULL;
         }
 
         png_infop info = png_create_info_struct(png);
@@ -29,7 +34,7 @@ void read_png_file(const char *filename, unsigned char **image_buffer, int *widt
         {
                 png_destroy_read_struct(&png, NULL, NULL);
                 fclose(fp);
-                return;
+                return NULL;
         }
 
         // Error handling
@@ -37,7 +42,7 @@ void read_png_file(const char *filename, unsigned char **image_buffer, int *widt
         {
                 png_destroy_read_struct(&png, &info, NULL);
                 fclose(fp);
-                return;
+                return NULL;
         }
         
         // Initialize I/O and read PNG info
@@ -47,10 +52,10 @@ void read_png_file(const char *filename, unsigned char **image_buffer, int *widt
 
         *width = png_get_image_width(png, info);
         *height = png_get_image_height(png, info);
+        *bit_depth = png_get_bit_depth(png, info);
         png_byte color_type = png_get_color_type(png, info);
-        png_byte bit_depth = png_get_bit_depth(png, info);
 
-        if (bit_depth == 16) png_set_strip_16(png);
+        // if (bit_depth == 16) png_set_strip_16(png);
         if (color_type == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(png);
         if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8) png_set_expand_gray_1_2_4_to_8(png);
         if (png_get_valid(png, info, PNG_INFO_tRNS)) png_set_tRNS_to_alpha(png);
@@ -59,23 +64,47 @@ void read_png_file(const char *filename, unsigned char **image_buffer, int *widt
         png_read_update_info(png, info);
 
         // Get the number of channels (RBG = 3, RGBA = 4)
-        *channels = png_get_channels(png, info);
+        // *channels = png_get_channels(png, info);
 
         // Allocate memory for image buffer
-        int rowbytes = png_get_rowbytes(png, info);
-        *image_buffer = (unsigned char*)malloc(rowbytes * (*height));
-
-        // Allocate row pointers
-        png_bytep *row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * (*height));
-        for (int y = 0; y < *height; y++) {
-                row_pointers[y] = *image_buffer + y * rowbytes;
+        // int rowbytes = png_get_rowbytes(png, info);
+        uint8_t *image_data = (uint8_t*)malloc((*width) * (*height));
+        if (!image_data)
+        {
+                fprintf(stderr, "Error: Memory allocation failed\n");
+                fclose(fp);
+                return NULL;
         }
+        
+        // Read image data row by row
+        png_bytep *row_pointers = (png_bytep*)malloc((*height) * sizeof(png_bytep));
 
+        for (int y = 0; y < *height; y++)
+        {
+                row_pointers[y] = image_data + (y * (*width));
+        }
+        
         // Read image into buffer
         png_read_image(png, row_pointers);
 
         // Clean up
-        free(row_pointers);
         png_destroy_read_struct(&png, &info, NULL);
+        free(row_pointers);
         fclose(fp);
+
+        return image_data;
+}
+
+uint8_t* resize_image(uint8_t* image, uint16_t src_w, uint16_t src_h, uint16_t dest_w, uint16_t dest_h)
+{
+        uint8_t *output = (uint8_t*)malloc(dest_w * dest_h);
+        if (!output)
+        {
+                fprintf(stderr, "Error: Memory allocation failed. \n");
+                return NULL;
+        }
+
+        stbir_resize_uint8(image, src_w, src_h, 0, output, dest_w, dest_h, 0, 1);
+
+        return output;
 }

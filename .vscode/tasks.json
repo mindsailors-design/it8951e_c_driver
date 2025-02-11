@@ -15,7 +15,8 @@
                 "-lwiringPi",
                 "-lX11",
                 "-lXext",
-                "-lpng"
+                "-lpng",
+                "-lm"
             ],
             "options": {
                 "cwd": "${fileDirname}"

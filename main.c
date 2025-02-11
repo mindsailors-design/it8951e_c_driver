@@ -4,6 +4,7 @@
 
 #include "it8951.h"
 #include "read_png_file.h"
+#include "stb_image_resize.h"
 
 uint16_t VCOM = 2140;
 
@@ -25,24 +26,38 @@ int main(int argc, char *argv[])
 
 	if (image) {
 		printf("Loaded PNG: %dx%d, Bit depth: %d\n", width, height, bit_depth);
-
-		// Use the image buffer (e.g., pass it to another function)
-
 	} else {
 		printf("Failed to load PNG image\n");
 	}
+
+	printf("Original: %dx%d\n", width, height);
+
+	// target resolution
+	int new_width = 1448, new_height = 1072;
+
+	// resize
+	uint8_t *scaled = resize_image(image, width, height, new_width, new_height);
+	if (!scaled)
+	{
+		free(image);
+		return -1;
+	}
+
+	printf("Resized: %dx%d\n", new_width, new_height);
 
 	GPIO_Init();
 
 	Dev_Info = IT8951Init(VCOM);
 
+	Target_Memory_Address = Dev_Info.MemoryAddrL | (Dev_Info.MemoryAddrH << 16);
+
 	IT8951_ClearRefresh(Dev_Info, Target_Memory_Address, DSP_MD_INIT);
 
-	IT8951DisplayImage_1bpp_Refresh(image, 0, 0, width, height, DSP_MD_GC16, Target_Memory_Address, true);
+	IT8951DisplayImage_1bpp_Refresh(scaled, 0, 0, new_width, new_height, DSP_MD_GC16, Target_Memory_Address, true);
 
 
 	// Free buffer after use
-	free(image);
+	free(scaled);
 	
 	return 0;
 }
