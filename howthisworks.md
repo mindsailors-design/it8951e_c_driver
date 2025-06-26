@@ -1,7 +1,6 @@
 # Quick notes about how IT8951E works and how to talk to it via SPI.
 Based on datasheet and programming guide.
 
-
 1. Firstly, it is a e-paper display driver, that works over I80, SPI and I2C buses, however using SPI or I2C it is based on I80 commands that are sent via these different interfaces.
 2. Code based on [repository](https://github.com/waveshare/IT8951) done by Waveshare. \
 Turns out that code provided by Waveshare does not work. Who whould have thought. \
